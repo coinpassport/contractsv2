@@ -4,8 +4,12 @@ pragma solidity ^0.8.13;
 import "openzeppelin-contracts/contracts/access/Ownable.sol";
 import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
+import "./ISemaphore.sol";
+
 contract VerificationV2 is Ownable {
   address public signer;
+  ISemaphore public semaphore;
+  uint public groupId;
 
   struct FeeConfig {
     IERC20 token;
@@ -38,9 +42,12 @@ contract VerificationV2 is Ownable {
   event IsOver21(address indexed account);
   event CountryOfOrigin(address indexed account, uint countryCode);
 
-  constructor(address _signer, FeeConfig[] memory _feeChoices) Ownable(msg.sender) {
+  constructor(address _signer, address _semaphore, uint _groupId, FeeConfig[] memory _feeChoices) Ownable(msg.sender) {
     require(_signer != address(0), "Signer must not be zero address");
     signer = _signer;
+    semaphore = ISemaphore(_semaphore);
+    groupId = _groupId;
+    semaphore.createGroup(groupId, 30, address(this));
     for(uint i=0; i<_feeChoices.length; i++) {
       feeChoices.push(_feeChoices[i]);
     }
@@ -67,11 +74,18 @@ contract VerificationV2 is Ownable {
 
   // TODO will need a backend service that removes expired accounts
   // can be handled through a function on this contract without access control
+  // TODO add nonce to the signature to prevent replay?
+  // replay would be a user who revokes then republishes,
+  //  there's no reason this would be a problem,
+  //   except if the passport was no longer valid
+  //   but we're not checking that anyways
   function publishVerification(
     uint256 expiration,
     bytes32 countryAndDocNumberHash,
+    uint256 identityCommitment,
     bytes calldata signature
   ) external {
+    require(expiration > block.timestamp);
     // Signing server will only provide signature if fee has been paid,
     //  not necessary to require it here
     delete hasPaidFee[msg.sender];
@@ -93,6 +107,7 @@ contract VerificationV2 is Ownable {
     // Update account state
     idHashToAccount[countryAndDocNumberHash] = msg.sender;
     accounts[msg.sender] = VerifiedPassport(expiration, countryAndDocNumberHash);
+    semaphore.addMember(groupId, identityCommitment);
     emit VerificationUpdated(msg.sender, expiration);
   }
 
