@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import "./IERC20.sol";
-import "./Ownable.sol";
+import "openzeppelin-contracts/contracts/access/Ownable.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 contract VerificationV2 is Ownable {
   address public signer;
@@ -38,9 +38,8 @@ contract VerificationV2 is Ownable {
   event IsOver21(address indexed account);
   event CountryOfOrigin(address indexed account, uint countryCode);
 
-  constructor(address _signer, FeeConfig[] memory _feeChoices) {
+  constructor(address _signer, FeeConfig[] memory _feeChoices) Ownable(msg.sender) {
     require(_signer != address(0), "Signer must not be zero address");
-    _transferOwnership(msg.sender);
     signer = _signer;
     for(uint i=0; i<_feeChoices.length; i++) {
       feeChoices.push(_feeChoices[i]);
@@ -66,6 +65,8 @@ contract VerificationV2 is Ownable {
     return hasPaidFee[account];
   }
 
+  // TODO will need a backend service that removes expired accounts
+  // can be handled through a function on this contract without access control
   function publishVerification(
     uint256 expiration,
     bytes32 countryAndDocNumberHash,
@@ -204,11 +205,6 @@ contract VerificationV2 is Ownable {
       feeChoices.push(_feeChoices[i]);
     }
     emit FeeChoicesChanged();
-  }
-
-  function transferOwnership(address newOwner) external onlyOwner {
-    require(newOwner != address(0), "Ownable: new owner is the zero address");
-    _transferOwnership(newOwner);
   }
 
   function transferFeeToken(address recipient, uint index, uint amount) external onlyOwner {
