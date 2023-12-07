@@ -33,23 +33,52 @@ contract VerificationV2Test is Test {
     feeToken.mint(feeAmount);
     feeToken.approve(address(main), feeAmount);
     main.payFee(0);
-    assertTrue(main.feePaidFor(address(this)) > 0);
+    assertEq(main.feePaidBlock(address(this)), block.number);
 
     uint expiration = block.timestamp + 365 days;
     bytes32 countryAndDocNumberHash = keccak256('test123');
     uint idCommitment = 123456;
 
-    bytes32 hash = keccak256(abi.encode(address(this), expiration, countryAndDocNumberHash));
+    bytes memory sig = makeSignature(keccak256(abi.encode(
+      address(this),
+      expiration,
+      countryAndDocNumberHash
+    )));
+
+    main.publishVerification(expiration, countryAndDocNumberHash, idCommitment, sig);
+    assertEq(main.feePaidBlock(address(this)), 0);
+    assertTrue(semaphore.hasMember(groupId, idCommitment));
+
+    uint256 signal = 123;
+    uint256[8] memory proof = [uint256(0),0,0,0,0,0,0,0];
+    bytes memory proofSig = makeSignature(keccak256(abi.encode(
+      signal,
+      proof
+    )));
+    main.submitProof(
+      idCommitment, // mock takes idCommitment as merkleTreeRoot
+      signal,
+      proofSig,
+      0, // nullifierHash
+      0, // externalNullifier
+      proof
+    );
+
+    // The mock doesn't check these values
+    uint256[] memory proofSiblings = new uint256[](0);
+    uint8[] memory proofPathIndices = new uint8[](0);
+
+    main.revokeVerification(proofSiblings, proofPathIndices);
+    assertTrue(!semaphore.hasMember(groupId, idCommitment));
+
+  }
+
+  function makeSignature(bytes32 hash) internal view returns(bytes memory) {
     bytes32 ethSignedHash = keccak256(
       abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
 
     (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, ethSignedHash);
-    bytes memory sig = abi.encodePacked(r, s, v);
-
-    main.publishVerification(expiration, countryAndDocNumberHash, idCommitment, sig);
-    assertEq(main.feePaidFor(address(this)), 0);
-    assertTrue(semaphore.hasMember(groupId, idCommitment));
-
+    return abi.encodePacked(r, s, v);
   }
 
 }

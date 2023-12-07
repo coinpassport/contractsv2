@@ -26,6 +26,20 @@ contract MockSemaphore {
     return false;
   }
 
+  function removeMember(
+      uint256 groupId,
+      uint256 identityCommitment,
+      uint256[] calldata,
+      uint8[] calldata
+  ) external {
+    require(groupAdmin[groupId] == msg.sender);
+    for(uint i = 0; i<commitmentsByGroup[groupId].length; i++) {
+      if(commitmentsByGroup[groupId][i] == identityCommitment) {
+        commitmentsByGroup[groupId][i] = 0;
+      }
+    }
+  }
+
   // XXX: Pass a member's commitment as the merkleTreeRoot to pass this
   function verifyProof(
     uint256 groupId,
