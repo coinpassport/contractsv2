@@ -2,145 +2,91 @@
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/contracts/access/Ownable.sol";
+import "openzeppelin-contracts/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "openzeppelin-contracts/contracts/interfaces/IERC4906.sol";
+import "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
 
 import "./ISemaphore.sol";
 import "./IVerificationV2.sol";
 
-contract VerificationV2 is IVerificationV2, Ownable {
+contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 {
   address public signer;
   ISemaphore public semaphore;
   uint public groupId;
-  FeeConfig[] public feeChoices;
+  IERC20 public feeToken;
+  uint public beginningOfTime;
 
-  mapping(address => VerifiedPassport) public accounts;
   mapping(bytes32 => address) public idHashToAccount;
   mapping(address => uint) public feePaidBlock;
-  mapping(address => uint) public idCommitments;
-  mapping(address => uint256) public signals;
+  mapping(uint256 => uint256) public signalReverseLookup;
 
   constructor(
+    string memory name,
+    string memory symbol,
     address _signer,
     address _semaphore,
     uint _groupId,
-    FeeConfig[] memory _feeChoices
-  ) Ownable(msg.sender) {
-
+    address _feeToken,
+    uint _beginningOfTime
+  ) Ownable(msg.sender) ERC721(name, symbol) {
     signer = _signer;
     semaphore = ISemaphore(_semaphore);
     groupId = _groupId;
+    feeToken = IERC20(_feeToken);
+    beginningOfTime = _beginningOfTime;
     semaphore.createGroup(groupId, 30, address(this));
-
-    for(uint i=0; i<_feeChoices.length; i++) {
-      feeChoices.push(_feeChoices[i]);
-    }
   }
 
-  function payFeeFor(address account, uint index) public {
+  function supportsInterface(
+    bytes4 interfaceId
+  ) public view virtual override(ERC721Enumerable, IERC165) returns (bool) {
+    return interfaceId == bytes4(0x49064906)
+      || super.supportsInterface(interfaceId);
+  }
+
+  function payFeeFor(address account) public {
     emit FeePaid(account);
     feePaidBlock[account] = block.number;
-    bool received = feeChoices[index].token.transferFrom(
-      msg.sender,
-      address(this),
-      feeChoices[index].amount
-    );
+    bool received = feeToken.transferFrom(msg.sender, address(this), 1);
     require(received);
   }
 
-  function payFee(uint index) external {
-    payFeeFor(msg.sender, index);
+  function payFee() external {
+    payFeeFor(msg.sender);
   }
 
   function unsetPaidFee(address account) external onlyOwner {
     delete feePaidBlock[account];
   }
 
-  // TODO will need a backend service that removes expired accounts
-  // can be handled through a function on this contract without access control
-  // TODO add nonce to the signature to prevent replay?
-  // replay would be a user who revokes then republishes,
-  //  there's no reason this would be a problem,
-  //   except if the passport was no longer valid
-  //   but we're not checking that anyways
   function publishVerification(
-    uint256 expiration,
-    bytes32 countryAndDocNumberHash,
+    bytes32 idHash,
     uint256 identityCommitment,
     bytes calldata signature
   ) external {
-    if(expiration <= block.timestamp) revert CredentialExpired();
     // Signing server will only provide signature if fee has been paid,
     //  not necessary to require it here
     delete feePaidBlock[msg.sender];
     // Recreate hash as built by the client
     checkSignature(keccak256(abi.encode(
       msg.sender,
-      expiration,
-      countryAndDocNumberHash
+      idHash
     )), signature);
 
-    // Revoke verification before proceeding
-    if(idHashToAccount[countryAndDocNumberHash] != address(0))
+    // Each passport only gets one token
+    if(idHashToAccount[idHash] != address(0))
       revert IdHashInUse();
 
     // Update account state
-    idHashToAccount[countryAndDocNumberHash] = msg.sender;
-    accounts[msg.sender] = VerifiedPassport(expiration, countryAndDocNumberHash);
+    idHashToAccount[idHash] = msg.sender;
     semaphore.addMember(groupId, identityCommitment);
-    idCommitments[msg.sender] = identityCommitment;
-    emit VerificationUpdated(msg.sender, expiration);
   }
 
-  function revokeVerification(
-    uint256[] calldata proofSiblings,
-    uint8[] calldata proofPathIndices
-  ) external {
-    _revokeVerification(msg.sender, proofSiblings, proofPathIndices);
-  }
-
-  function revokeVerificationOf(
-    address account,
-    uint256[] calldata proofSiblings,
-    uint8[] calldata proofPathIndices,
-    bytes memory signature
-  ) external onlyOwner {
-    // TODO this is not sufficient for the hash, it must be keyed
-    //  also by something finer
-    checkSignature(keccak256(abi.encode(
-      account,
-      proofSiblings,
-      proofPathIndices
-    )), signature);
-
-    _revokeVerification(account, proofSiblings, proofPathIndices);
-  }
-
-  function _revokeVerification(
-    address account,
-    uint256[] calldata proofSiblings,
-    uint8[] calldata proofPathIndices
-  ) internal {
-    if(accounts[account].expiration == 0)
-      revert NotVerified();
-
-    semaphore.removeMember(
-      groupId,
-      idCommitments[account],
-      proofSiblings,
-      proofPathIndices
-    );
-
-    delete accounts[account];
-    delete idHashToAccount[accounts[account].countryAndDocNumberHash];
-    delete idCommitments[account];
-
-    emit VerificationUpdated(account, 0);
-  }
-
-  // TODO there's no way to disqualify an anon account
-  //  do we using expiring groups?
-  //   e.g. a new group each month that you have to join manually?
-  //   that would add to the anonymity and make it so I don't need a special
-  //   service for revoking expired accounts
+  // @param signal
+  //   16 bits expiration "month" number after beginningOfTime
+  //   optional 16 bits country code
+  //   optional 1 bit over 18
+  //   optional 1 bit over 21
   function submitProof(
     uint256 merkleTreeRoot,
     uint256 signal,
@@ -149,7 +95,15 @@ contract VerificationV2 is IVerificationV2, Ownable {
     uint256 externalNullifier,
     uint256[8] calldata proof
   ) external {
-    checkSignature(keccak256(abi.encode(signal, proof)), signature);
+    checkSignature(keccak256(abi.encode(
+      msg.sender,
+      signal,
+      proof
+    )), signature);
+
+    _mint(msg.sender, merkleTreeRoot);
+    signalReverseLookup[merkleTreeRoot] = signal;
+
     semaphore.verifyProof(
       groupId,
       merkleTreeRoot,
@@ -160,22 +114,33 @@ contract VerificationV2 is IVerificationV2, Ownable {
     );
   }
 
+  function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    _requireOwned(tokenId);
+    return string(abi.encode(signalReverseLookup[tokenId]));
+  }
+
+  function tokenActive(uint256 tokenId) public view returns (bool) {
+    _requireOwned(tokenId);
+
+    uint expiration = beginningOfTime + (uint256(uint16(signalReverseLookup[tokenId])) * 4 weeks);
+    return expiration > block.timestamp;
+  }
+
   function addressActive(address toCheck) public view returns (bool) {
-    return accounts[toCheck].expiration > block.timestamp;
+    for(uint i = 0; i<balanceOf(toCheck); i++) {
+      if(tokenActive(tokenOfOwnerByIndex(toCheck, i))) return true;
+    }
+    return false;
   }
 
-  function setFeeChoices(FeeConfig[] memory _feeChoices) external onlyOwner {
-    while(feeChoices.length > 0) {
-      feeChoices.pop();
-    }
-    for(uint i=0; i<_feeChoices.length; i++) {
-      feeChoices.push(_feeChoices[i]);
-    }
-    emit FeeChoicesChanged();
+  function setTokenOwner(uint256 tokenId, address newOwner) external onlyOwner {
+    _requireOwned(tokenId);
+    _update(newOwner, tokenId, address(0));
   }
 
-  function transferFeeToken(address recipient, uint index, uint amount) external onlyOwner {
-    require(feeChoices[index].token.transfer(recipient, amount));
+  function setFeeToken(address _feeToken) external onlyOwner {
+    emit FeeTokenChanged(address(feeToken), _feeToken);
+    feeToken = IERC20(_feeToken);
   }
 
   function setSigner(address newSigner) external onlyOwner {

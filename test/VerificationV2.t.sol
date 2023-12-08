@@ -15,46 +15,57 @@ contract VerificationV2Test is Test {
   uint256 signerPk;
   DummyERC20 public feeToken;
   MockSemaphore public semaphore;
-  uint constant public feeAmount = 123;
   uint constant public groupId = 1234;
+  uint constant beginningOfTime = 1;
 
   function setUp() public {
     semaphore = new MockSemaphore();
     (signer, signerPk) = makeAddrAndKey('test_signer');
+    // TODO create FeeERC20 with mint for payment  and special collector approval
     feeToken = new DummyERC20("Test Token", "TEST");
-    VerificationV2.FeeConfig[] memory feeChoices = new VerificationV2.FeeConfig[](1);
-    feeChoices[0].token = IERC20(feeToken);
-    feeChoices[0].amount = feeAmount;
 
-    main = new VerificationV2(signer, address(semaphore), groupId, feeChoices);
+    main = new VerificationV2(
+      "Coinpassport V2",
+      "CPV2",
+      signer,
+      address(semaphore),
+      groupId,
+      address(feeToken),
+      beginningOfTime
+    );
   }
 
   function test_Verify() public {
-    feeToken.mint(feeAmount);
-    feeToken.approve(address(main), feeAmount);
-    main.payFee(0);
+    feeToken.mint(1);
+    feeToken.approve(address(main), 1);
+    main.payFee();
     assertEq(main.feePaidBlock(address(this)), block.number);
 
-    uint expiration = block.timestamp + 365 days;
-    bytes32 countryAndDocNumberHash = keccak256('test123');
+    bytes32 idHash = keccak256('test123');
     uint idCommitment = 123456;
 
     bytes memory sig = makeSignature(keccak256(abi.encode(
       address(this),
-      expiration,
-      countryAndDocNumberHash
+      idHash
     )));
 
-    main.publishVerification(expiration, countryAndDocNumberHash, idCommitment, sig);
+    main.publishVerification(idHash, idCommitment, sig);
     assertEq(main.feePaidBlock(address(this)), 0);
     assertTrue(semaphore.hasMember(groupId, idCommitment));
 
-    uint256 signal = 123;
+    address anon = address(2);
+
+    uint timePassed = (block.timestamp - beginningOfTime) / 4 weeks;
+    // 2 months active after now
+    uint256 signal = timePassed + 2;
     uint256[8] memory proof = [uint256(0),0,0,0,0,0,0,0];
     bytes memory proofSig = makeSignature(keccak256(abi.encode(
+      anon,
       signal,
       proof
     )));
+
+    vm.prank(anon);
     main.submitProof(
       idCommitment, // mock takes idCommitment as merkleTreeRoot
       signal,
@@ -64,12 +75,12 @@ contract VerificationV2Test is Test {
       proof
     );
 
-    // The mock doesn't check these values
-    uint256[] memory proofSiblings = new uint256[](0);
-    uint8[] memory proofPathIndices = new uint8[](0);
+    assertEq(main.balanceOf(anon), 1);
+    assertTrue(main.addressActive(anon));
 
-    main.revokeVerification(proofSiblings, proofPathIndices);
-    assertTrue(!semaphore.hasMember(groupId, idCommitment));
+    // Jump forward 4 months, after expiration
+    vm.warp(block.timestamp + (4 * 4 weeks));
+    assertTrue(!main.addressActive(anon));
 
   }
 
