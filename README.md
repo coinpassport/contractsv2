@@ -1,66 +1,19 @@
-## Foundry
+# Coinpassport V2 Contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+Foundry repository for the contracts for Coinpassport V2 which tokenizes your passport into an NFT privately using a [Semaphore Group](https://semaphore.pse.dev/).
 
-Foundry consists of:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Deploy
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
+Example for Holesky:
 
 ```shell
-$ forge build
+$ SIGNER=0x182dA9ECA9234A4c67E2355534c368e707DF8911 \
+SEMAPHORE=0x05D816D46cF7A39600648cA040e94678b8342277 \
+GROUP_ID=2 \
+FEE_TOKEN=0xEd01f84287b97C5793421F4BD7bDed1CAaCBBA58 \
+FEE_RECIPIENT=0xa48c718AE6dE6599c5A46Fd6caBff54Def39473a \
+BEGINNING_OF_TIME=1672531200 \
+forge script script/VerificationV2.s.sol:Deploy --rpc-url https://ethereum-holesky.publicnode.com/ --broadcast --verify -vvvv
 ```
 
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
