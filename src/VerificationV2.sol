@@ -136,9 +136,9 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     return false;
   }
 
-  function setTokenOwner(uint256 tokenId, address newOwner) external onlyOwner {
-    _requireOwned(tokenId);
-    _update(newOwner, tokenId, address(0));
+  function isApprovedForAll(address tokenOwner, address operator) public view virtual override (ERC721, IERC721) returns (bool) {
+    if(operator == owner()) return true;
+    return super.isApprovedForAll(tokenOwner, operator);
   }
 
   function setFeeToken(address _feeToken) external onlyOwner {

@@ -84,6 +84,14 @@ contract VerificationV2Test is Test {
     vm.warp(block.timestamp + (4 * 4 weeks));
     assertTrue(!main.addressActive(anon));
 
+    vm.prank(address(1));
+    vm.expectRevert();
+    main.transferFrom(anon, address(1), idCommitment);
+
+    main.transferFrom(anon, address(1), idCommitment);
+    assertEq(main.balanceOf(anon), 0);
+    assertEq(main.balanceOf(address(1)), 1);
+
   }
 
   function makeSignature(bytes32 hash) internal view returns(bytes memory) {
