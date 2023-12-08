@@ -8,6 +8,7 @@ interface IVerificationV2 {
   error InvalidSignature();
 
   event FeePaid(address indexed account);
+  event FeeRecipientChanged(address indexed previousFeeRecipient, address indexed newFeeRecipient);
   event SignerChanged(address indexed previousSigner, address indexed newSigner);
   event FeeTokenChanged(address indexed oldFeeToken, address indexed newFeeToken);
 }

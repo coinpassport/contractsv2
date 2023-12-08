@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
 import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
@@ -17,11 +17,11 @@ contract VerificationV2Test is Test {
   MockSemaphore public semaphore;
   uint constant public groupId = 1234;
   uint constant beginningOfTime = 1;
+  address constant feeRecipient = address(100);
 
   function setUp() public {
     semaphore = new MockSemaphore();
     (signer, signerPk) = makeAddrAndKey('test_signer');
-    // TODO create FeeERC20 with mint for payment  and special collector approval
     feeToken = new DummyERC20("Test Token", "TEST");
 
     main = new VerificationV2(
@@ -31,6 +31,7 @@ contract VerificationV2Test is Test {
       address(semaphore),
       groupId,
       address(feeToken),
+      feeRecipient,
       beginningOfTime
     );
   }
@@ -40,6 +41,7 @@ contract VerificationV2Test is Test {
     feeToken.approve(address(main), 1);
     main.payFee();
     assertEq(main.feePaidBlock(address(this)), block.number);
+    assertEq(feeToken.balanceOf(feeRecipient), 1);
 
     bytes32 idHash = keccak256('test123');
     uint idCommitment = 123456;

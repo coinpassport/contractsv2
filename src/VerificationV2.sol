@@ -14,6 +14,7 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   ISemaphore public semaphore;
   uint public groupId;
   IERC20 public feeToken;
+  address public feeRecipient;
   uint public beginningOfTime;
 
   mapping(bytes32 => address) public idHashToAccount;
@@ -27,12 +28,14 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     address _semaphore,
     uint _groupId,
     address _feeToken,
+    address _feeRecipient,
     uint _beginningOfTime
   ) Ownable(msg.sender) ERC721(name, symbol) {
     signer = _signer;
     semaphore = ISemaphore(_semaphore);
     groupId = _groupId;
     feeToken = IERC20(_feeToken);
+    feeRecipient = _feeRecipient;
     beginningOfTime = _beginningOfTime;
     semaphore.createGroup(groupId, 30, address(this));
   }
@@ -47,7 +50,7 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   function payFeeFor(address account) public {
     emit FeePaid(account);
     feePaidBlock[account] = block.number;
-    bool received = feeToken.transferFrom(msg.sender, address(this), 1);
+    bool received = feeToken.transferFrom(msg.sender, feeRecipient, 1);
     require(received);
   }
 
@@ -146,6 +149,11 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   function setSigner(address newSigner) external onlyOwner {
     emit SignerChanged(signer, newSigner);
     signer = newSigner;
+  }
+
+  function setFeeRecipient(address newFeeRecipient) external onlyOwner {
+    emit FeeRecipientChanged(feeRecipient, newFeeRecipient);
+    feeRecipient = newFeeRecipient;
   }
 
   function checkSignature(bytes32 hash, bytes memory signature) internal view {
