@@ -13,6 +13,7 @@ contract FeeERC20Test is Test {
   FeeERC20 public feeToken;
 
   uint constant public dummyAmount = 15;
+  address constant public feeRecipient = address(3);
 
   function setUp() public {
     dummyToken = new DummyERC20("Dummy", "DUMMY");
@@ -20,7 +21,7 @@ contract FeeERC20Test is Test {
     FeeERC20.FeeConfig[] memory feeChoices = new FeeERC20.FeeConfig[](1);
     feeChoices[0].token = IERC20(dummyToken);
     feeChoices[0].amount = dummyAmount;
-    feeToken = new FeeERC20("Fee", "FEE", feeChoices, address(1));
+    feeToken = new FeeERC20("Fee", "FEE", feeChoices, feeRecipient, address(1));
   }
 
   function test_BuyOne() public {
@@ -29,6 +30,7 @@ contract FeeERC20Test is Test {
     feeToken.mint(0, 1);
     assertEq(feeToken.balanceOf(address(this)), 1);
     assertEq(dummyToken.balanceOf(address(this)), 0);
+    assertEq(dummyToken.balanceOf(feeRecipient), dummyAmount);
 
     vm.expectRevert();
     feeToken.transferFrom(address(this), address(1), 1);

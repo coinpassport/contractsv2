@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
 import {Script, console2} from "forge-std/Script.sol";
@@ -16,7 +16,6 @@ contract Deploy is Script {
     address semaphore = vm.envAddress("SEMAPHORE");
     uint groupId = vm.envUint("GROUP_ID");
     address feeToken = vm.envAddress("FEE_TOKEN");
-    address feeRecipient = vm.envAddress("FEE_RECIPIENT");
     uint beginningOfTime = vm.envUint("BEGINNING_OF_TIME");
     new VerificationV2(
       "Coinpassport",
@@ -25,7 +24,6 @@ contract Deploy is Script {
       semaphore,
       groupId,
       feeToken,
-      feeRecipient,
       beginningOfTime
     );
 

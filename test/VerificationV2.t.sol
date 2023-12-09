@@ -17,7 +17,6 @@ contract VerificationV2Test is Test {
   MockSemaphore public semaphore;
   uint constant public groupId = 1234;
   uint constant beginningOfTime = 1;
-  address constant feeRecipient = address(100);
 
   function setUp() public {
     semaphore = new MockSemaphore();
@@ -31,7 +30,6 @@ contract VerificationV2Test is Test {
       address(semaphore),
       groupId,
       address(feeToken),
-      feeRecipient,
       beginningOfTime
     );
   }
@@ -41,7 +39,7 @@ contract VerificationV2Test is Test {
     feeToken.approve(address(main), 1);
     main.payFee();
     assertEq(main.feePaidBlock(address(this)), block.number);
-    assertEq(feeToken.balanceOf(feeRecipient), 1);
+    assertEq(feeToken.balanceOf(address(this)), 0);
 
     bytes32 idHash = keccak256('test123');
     uint idCommitment = 123456;
