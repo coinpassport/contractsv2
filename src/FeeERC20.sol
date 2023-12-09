@@ -19,7 +19,6 @@ contract FeeERC20 is ERC20, Ownable {
   // Collector can move tokens as they wish
   address public collector;
   address public feeRecipient;
-  uint8 constant public decimals = 0;
 
   constructor(
     string memory name,
@@ -33,6 +32,10 @@ contract FeeERC20 is ERC20, Ownable {
     }
     feeRecipient = _feeRecipient;
     collector = _collector;
+  }
+
+  function decimals() public view virtual override returns (uint8) {
+    return 0;
   }
 
   function allowance(address owner, address spender) public view virtual override returns (uint256) {

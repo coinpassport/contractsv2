@@ -12,22 +12,23 @@ import "./IVerificationV2.sol";
 contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 {
   address public signer;
   ISemaphore public semaphore;
-  uint public groupId;
+  uint256 public groupId;
   IERC20 public feeToken;
-  uint public beginningOfTime;
+  uint256 public beginningOfTime;
 
   mapping(bytes32 => address) public idHashToAccount;
-  mapping(address => uint) public feePaidBlock;
+  mapping(address => uint256) public feePaidBlock;
   mapping(uint256 => uint256) public signalReverseLookup;
+  mapping(uint256 => address) public identityCommitments;
 
   constructor(
     string memory name,
     string memory symbol,
     address _signer,
     address _semaphore,
-    uint _groupId,
+    uint256 _groupId,
     address _feeToken,
-    uint _beginningOfTime
+    uint256 _beginningOfTime
   ) Ownable(msg.sender) ERC721(name, symbol) {
     signer = _signer;
     semaphore = ISemaphore(_semaphore);
@@ -64,29 +65,33 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     uint256 identityCommitment,
     bytes calldata signature
   ) external {
+    if(identityCommitments[identityCommitment] != address(0))
+      revert DuplicateIdentityCommitment();
+    if(idHashToAccount[idHash] != address(0))
+      revert IdHashInUse();
+
     // Signing server will only provide signature if fee has been paid,
     //  not necessary to require it here
     delete feePaidBlock[msg.sender];
+
     // Recreate hash as built by the client
     checkSignature(keccak256(abi.encode(
       msg.sender,
       idHash
     )), signature);
 
-    // Each passport only gets one token
-    if(idHashToAccount[idHash] != address(0))
-      revert IdHashInUse();
-
     // Update account state
     idHashToAccount[idHash] = msg.sender;
+    identityCommitments[identityCommitment] = msg.sender;
     semaphore.addMember(groupId, identityCommitment);
   }
 
   // @param signal
   //   16 bits expiration "month" number after beginningOfTime
-  //   optional 16 bits country code
-  //   optional 1 bit over 18
-  //   optional 1 bit over 21
+  // TODO to differentiate, it'd be 3 groups:
+  //  this one for only expiration,
+  //  then one for by  country,
+  //  and one for by at-least age
   function submitProof(
     uint256 merkleTreeRoot,
     uint256 signal,

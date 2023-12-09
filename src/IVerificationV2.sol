@@ -6,6 +6,7 @@ import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 interface IVerificationV2 {
   error IdHashInUse();
   error InvalidSignature();
+  error DuplicateIdentityCommitment();
 
   event FeePaid(address indexed account);
   event SignerChanged(address indexed previousSigner, address indexed newSigner);
