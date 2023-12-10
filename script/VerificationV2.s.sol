@@ -14,17 +14,17 @@ contract Deploy is Script {
 
     address signer = vm.envAddress("SIGNER");
     address semaphore = vm.envAddress("SEMAPHORE");
-    uint groupId = vm.envUint("GROUP_ID");
     address feeToken = vm.envAddress("FEE_TOKEN");
-    uint beginningOfTime = vm.envUint("BEGINNING_OF_TIME");
+    uint groupId = vm.envUint("GROUP_ID");
+    uint groupDepth = vm.envUint("GROUP_DEPTH");
     new VerificationV2(
       "Coinpassport",
       "PASSPORT",
       signer,
       semaphore,
-      groupId,
       feeToken,
-      beginningOfTime
+      groupId,
+      groupDepth
     );
 
     vm.stopBroadcast();

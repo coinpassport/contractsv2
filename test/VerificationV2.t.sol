@@ -16,7 +16,6 @@ contract VerificationV2Test is Test {
   DummyERC20 public feeToken;
   MockSemaphore public semaphore;
   uint constant public groupId = 1234;
-  uint constant beginningOfTime = 1;
 
   function setUp() public {
     semaphore = new MockSemaphore();
@@ -28,9 +27,9 @@ contract VerificationV2Test is Test {
       "CPV2",
       signer,
       address(semaphore),
-      groupId,
       address(feeToken),
-      beginningOfTime
+      groupId,
+      16 // doesn't matter, not used
     );
   }
 
@@ -43,33 +42,29 @@ contract VerificationV2Test is Test {
 
     bytes32 idHash = keccak256('test123');
     uint idCommitment = 123456;
+    uint expiration = block.timestamp + 2 weeks;
 
     bytes memory sig = makeSignature(keccak256(abi.encode(
       address(this),
+      expiration,
       idHash
     )));
 
-    main.publishVerification(idHash, idCommitment, sig);
+    main.publishVerification(
+      expiration,
+      idHash,
+      idCommitment,
+      sig
+    );
     assertEq(main.feePaidBlock(address(this)), 0);
     assertTrue(semaphore.hasMember(groupId, idCommitment));
 
     address anon = address(2);
-
-    uint timePassed = (block.timestamp - beginningOfTime) / 4 weeks;
-    // 2 months active after now
-    uint256 signal = timePassed + 2;
     uint256[8] memory proof = [uint256(0),0,0,0,0,0,0,0];
-    bytes memory proofSig = makeSignature(keccak256(abi.encode(
-      anon,
-      signal,
-      proof
-    )));
-
     vm.prank(anon);
     main.submitProof(
       idCommitment, // mock takes idCommitment as merkleTreeRoot
-      signal,
-      proofSig,
+      0, // signal
       0, // nullifierHash
       0, // externalNullifier
       proof
@@ -78,18 +73,45 @@ contract VerificationV2Test is Test {
     assertEq(main.balanceOf(anon), 1);
     assertTrue(main.addressActive(anon));
 
-    // Jump forward 4 months, after expiration
-    vm.warp(block.timestamp + (4 * 4 weeks));
+    main.newGroup(groupId + 1, 16);
     assertTrue(!main.addressActive(anon));
 
-    vm.prank(address(1));
+    vm.warp(block.timestamp + 1 weeks);
+
+    vm.prank(anon);
     vm.expectRevert();
-    main.transferFrom(anon, address(1), idCommitment);
+    main.submitProof(idCommitment, 0, 0, 0, proof);
 
-    main.transferFrom(anon, address(1), idCommitment);
-    assertEq(main.balanceOf(anon), 0);
-    assertEq(main.balanceOf(address(1)), 1);
+    main.joinNewGroup(idCommitment + 1);
 
+    vm.prank(anon);
+    main.submitProof(idCommitment + 1, 0, 0, 0, proof);
+
+    vm.warp(block.timestamp + 2 weeks);
+
+    vm.expectRevert();
+    main.joinNewGroup(idCommitment + 2);
+    vm.expectRevert();
+    main.submitProof(idCommitment + 2, 0, 0, 0, proof);
+
+    // Submit a new id with a future expiration
+    expiration = block.timestamp + 2 weeks;
+    idHash = keccak256('newidhash123');
+    sig = makeSignature(keccak256(abi.encode(
+      address(this),
+      expiration,
+      idHash
+    )));
+
+    main.publishVerification(
+      expiration,
+      idHash,
+      idCommitment + 2,
+      sig
+    );
+
+    vm.prank(anon);
+    main.submitProof(idCommitment + 2, 0, 0, 0, proof);
   }
 
   function makeSignature(bytes32 hash) internal view returns(bytes memory) {
