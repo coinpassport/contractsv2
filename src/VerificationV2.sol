@@ -12,8 +12,7 @@ import "./IVerificationV2.sol";
 contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 {
   address public signer;
   ISemaphore public semaphore;
-  uint256 public groupId;
-  uint256 public groupDepth;
+  GroupDetails[] public groups;
   IERC20 public feeToken;
   uint256 public beginningOfTime;
 
@@ -38,9 +37,28 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     signer = _signer;
     semaphore = ISemaphore(_semaphore);
     feeToken = IERC20(_feeToken);
-    groupId = _groupId;
-    groupDepth = _groupDepth;
-    semaphore.createGroup(groupId, groupDepth, address(this));
+    groups.push(GroupDetails(_groupId, _groupDepth, 0));
+    semaphore.createGroup(_groupId, _groupDepth, address(this));
+  }
+
+  function groupCount() public view returns(uint256) {
+    return groups.length;
+  }
+
+  function groupIndex() public view returns (uint256) {
+    uint256 index = groups.length - 1;
+    while(groups[index].startTime > block.timestamp) {
+      index--;
+    }
+    return index;
+  }
+
+  function groupId() public view returns (uint256) {
+    return groups[groupIndex()].id;
+  }
+
+  function groupDepth() public view returns (uint256) {
+    return groups[groupIndex()].depth;
   }
 
   function supportsInterface(
@@ -92,12 +110,12 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     idHashToAccount[idHash] = msg.sender;
     idHashExpiration[idHash] = expiration;
     reverseIdentityCommitments[identityCommitment] = msg.sender;
-    identityCommitments[groupId].push(identityCommitment);
-    semaphore.addMember(groupId, identityCommitment);
+    identityCommitments[groupId()].push(identityCommitment);
+    semaphore.addMember(groupId(), identityCommitment);
   }
 
   function identityCommitmentCount() external view returns(uint) {
-    return identityCommitments[groupId].length;
+    return identityCommitments[groupId()].length;
   }
 
   function joinNewGroup(uint256 identityCommitment) external {
@@ -105,8 +123,8 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
       revert Inactive();
 
     reverseIdentityCommitments[identityCommitment] = msg.sender;
-    identityCommitments[groupId].push(identityCommitment);
-    semaphore.addMember(groupId, identityCommitment);
+    identityCommitments[groupId()].push(identityCommitment);
+    semaphore.addMember(groupId(), identityCommitment);
   }
 
   function submitProof(
@@ -118,11 +136,11 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     uint256[8] calldata proof
   ) external {
     _mint(msg.sender, merkleTreeRoot);
-    tokenGroupId[merkleTreeRoot] = groupId;
+    tokenGroupId[merkleTreeRoot] = groupId();
     signalReverseLookup[merkleTreeRoot] = signal;
 
     semaphore.verifyProof(
-      groupId,
+      groupId(),
       merkleTreeRoot,
       signal,
       nullifierHash,
@@ -142,7 +160,7 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
 
   function tokenActive(uint256 tokenId) public view returns (bool) {
     _requireOwned(tokenId);
-    return tokenGroupId[tokenId] == groupId;
+    return tokenGroupId[tokenId] == groupId();
   }
 
   function addressActive(address toCheck) public view returns (bool) {
@@ -152,14 +170,14 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
     return false;
   }
 
-  // Invoked on a regular basis (e.g. monthly)
-  //  ensures expired passports invalidate
-  //   since they won't be able to join the new group
-  function newGroup(uint256 newGroupId, uint256 depth) external onlyOwner {
+  function newGroup(
+    uint256 newGroupId,
+    uint256 depth,
+    uint256 startTime
+  ) external onlyOwner {
     emit GroupChanged(newGroupId, depth);
-    groupId = newGroupId;
-    groupDepth = depth;
-    semaphore.createGroup(groupId, groupDepth, address(this));
+    groups.push(GroupDetails(newGroupId, depth, startTime));
+    semaphore.createGroup(newGroupId, depth, address(this));
   }
 
   function setFeeToken(address _feeToken) external onlyOwner {

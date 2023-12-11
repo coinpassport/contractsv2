@@ -73,10 +73,16 @@ contract VerificationV2Test is Test {
     assertEq(main.balanceOf(anon), 1);
     assertTrue(main.addressActive(anon));
 
-    main.newGroup(groupId + 1, 16);
+    main.newGroup(groupId + 1, 16, block.timestamp + 1 days);
+    // Make another one further in the further too that won't activate
+    main.newGroup(groupId + 2, 16, block.timestamp + 4 weeks);
+    // Still active for another day
+    assertTrue(main.addressActive(anon));
+
+    vm.warp(block.timestamp + 2 days);
     assertTrue(!main.addressActive(anon));
 
-    vm.warp(block.timestamp + 1 weeks);
+    vm.warp(block.timestamp + 5 days);
 
     vm.prank(anon);
     vm.expectRevert();

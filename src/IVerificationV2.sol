@@ -15,5 +15,11 @@ interface IVerificationV2 {
   event FeeTokenChanged(address indexed oldFeeToken, address indexed newFeeToken);
   event GroupChanged(uint256 newGroupId, uint256 depth);
 
+  struct GroupDetails {
+    uint256 id;
+    uint256 depth;
+    uint256 startTime;
+  }
+
   function payFeeFor(address account) external;
 }
