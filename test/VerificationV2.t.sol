@@ -120,6 +120,74 @@ contract VerificationV2Test is Test {
     main.submitProof(idCommitment + 2, 0, 0, 0, proof);
   }
 
+  function test_ChangeIdAccount() public {
+    bytes32 idHash = keccak256('test123');
+    uint idCommitment = 123456;
+    uint expiration = block.timestamp + 2 weeks;
+
+    bytes memory sig = makeSignature(keccak256(abi.encode(
+      address(this),
+      expiration,
+      idHash
+    )));
+
+    main.publishVerification(
+      expiration,
+      idHash,
+      idCommitment,
+      sig
+    );
+
+    assertTrue(main.idHashInGroup(idHash, groupId));
+
+    address other = address(3);
+    sig = makeSignature(keccak256(abi.encode(
+      other,
+      expiration,
+      idHash
+    )));
+
+    vm.prank(other);
+    main.publishVerification(
+      expiration,
+      idHash,
+      idCommitment + 1,
+      sig
+    );
+
+    address anon = address(2);
+    uint256[8] memory proof = [uint256(0),0,0,0,0,0,0,0];
+    vm.prank(anon);
+    vm.expectRevert();
+    main.submitProof(
+      idCommitment + 1, // cannot join group using new account
+      0, // signal
+      0, // nullifierHash
+      0, // externalNullifier
+      proof
+    );
+
+    main.newGroup(groupId + 1, 16, block.timestamp + 1 days);
+    vm.warp(block.timestamp + 2 days);
+
+    vm.expectRevert();
+    // Original id holding account cannot join this group
+    main.joinNewGroup(idCommitment + 2);
+
+    vm.prank(other);
+    // Only the new holder
+    main.joinNewGroup(idCommitment + 2);
+
+    vm.prank(anon);
+    main.submitProof(
+      idCommitment + 2,
+      0, // signal
+      0, // nullifierHash
+      0, // externalNullifier
+      proof
+    );
+  }
+
   function makeSignature(bytes32 hash) internal view returns(bytes memory) {
     bytes32 ethSignedHash = keccak256(
       abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));

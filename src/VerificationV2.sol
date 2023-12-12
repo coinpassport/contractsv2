@@ -23,6 +23,7 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   mapping(uint256 => uint256) public signalReverseLookup;
   mapping(uint256 => address) public reverseIdentityCommitments;
   mapping(uint256 => uint256[]) public identityCommitments;
+  mapping(bytes32 => mapping(uint256 => bool)) public idHashInGroup;
   mapping(uint256 => uint256) public tokenGroupId;
 
   constructor(
@@ -91,8 +92,6 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   ) external {
     if(reverseIdentityCommitments[identityCommitment] != address(0))
       revert DuplicateIdentityCommitment();
-    if(idHashToAccount[idHash] != address(0))
-      revert IdHashInUse();
     if(expiration < block.timestamp)
       revert Expired();
 
@@ -106,12 +105,21 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
       idHash
     )), signature);
 
+    if(idHashToAccount[idHash] != address(0))
+      delete accountToIdHash[idHashToAccount[idHash]];
+
     accountToIdHash[msg.sender] = idHash;
     idHashToAccount[idHash] = msg.sender;
     idHashExpiration[idHash] = expiration;
     reverseIdentityCommitments[identityCommitment] = msg.sender;
     identityCommitments[groupId()].push(identityCommitment);
-    semaphore.addMember(groupId(), identityCommitment);
+    // If moving the idHash to new account, and the previous
+    //  account had joined the group already,
+    //  don't let this new account join again
+    if(!idHashInGroup[idHash][groupId()]) {
+      idHashInGroup[idHash][groupId()] = true;
+      semaphore.addMember(groupId(), identityCommitment);
+    }
   }
 
   function identityCommitmentCount() external view returns(uint) {
@@ -119,11 +127,15 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   }
 
   function joinNewGroup(uint256 identityCommitment) external {
-    if(idHashExpiration[accountToIdHash[msg.sender]] < block.timestamp)
+    bytes32 idHash = accountToIdHash[msg.sender];
+    if(idHashExpiration[idHash] < block.timestamp)
       revert Inactive();
+    if(idHashInGroup[idHash][groupId()])
+      revert AlreadyInGroup();
 
     reverseIdentityCommitments[identityCommitment] = msg.sender;
     identityCommitments[groupId()].push(identityCommitment);
+    idHashInGroup[idHash][groupId()] = true;
     semaphore.addMember(groupId(), identityCommitment);
   }
 

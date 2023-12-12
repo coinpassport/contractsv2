@@ -6,7 +6,7 @@ import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 interface IVerificationV2 {
   error Expired();
   error Inactive();
-  error IdHashInUse();
+  error AlreadyInGroup();
   error InvalidSignature();
   error DuplicateIdentityCommitment();
 
