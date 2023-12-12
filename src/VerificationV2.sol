@@ -20,7 +20,6 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   mapping(bytes32 => address) public idHashToAccount;
   mapping(address => bytes32) public accountToIdHash;
   mapping(address => uint256) public feePaidBlock;
-  mapping(uint256 => uint256) public signalReverseLookup;
   mapping(uint256 => address) public reverseIdentityCommitments;
   mapping(uint256 => uint256[]) public identityCommitments;
   mapping(bytes32 => mapping(uint256 => bool)) public idHashInGroup;
@@ -149,7 +148,6 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   ) external {
     _mint(msg.sender, merkleTreeRoot);
     tokenGroupId[merkleTreeRoot] = groupId();
-    signalReverseLookup[merkleTreeRoot] = signal;
 
     semaphore.verifyProof(
       groupId(),
