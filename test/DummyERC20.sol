@@ -9,8 +9,4 @@ contract DummyERC20 is ERC20 {
   function mint(uint256 value) external {
     _mint(msg.sender, value);
   }
-
-  function decimals() public view virtual override returns (uint8) {
-    return 1;
-  }
 }

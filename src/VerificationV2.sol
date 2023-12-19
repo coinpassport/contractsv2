@@ -14,6 +14,7 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
   ISemaphore public semaphore;
   GroupDetails[] public groups;
   IERC20 public feeToken;
+  uint256 public beginningOfTime;
 
   mapping(bytes32 => uint256) public idHashExpiration;
   mapping(bytes32 => address) public idHashToAccount;
