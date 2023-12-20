@@ -131,6 +131,8 @@ contract VerificationV2 is IVerificationV2, Ownable, ERC721Enumerable, IERC4906 
       revert Inactive();
     if(idHashInGroup[idHash][groupId()])
       revert AlreadyInGroup();
+    if(reverseIdentityCommitments[identityCommitment] != address(0))
+      revert DuplicateIdentityCommitment();
 
     reverseIdentityCommitments[identityCommitment] = msg.sender;
     identityCommitments[groupId()].push(identityCommitment);
