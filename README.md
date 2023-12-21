@@ -13,8 +13,6 @@ As a consequence:
 * Provides users a chance to reinvent their anonymous persona each epoch (i.e. if you get doxxed, you can start over at the next epoch)
     * Also minimizes anonymity penalties facing early adopters
 
-I [investigated proving an EdDSA signature verification using circom](https://github.com/coinpassport/contractsv2/commit/e1477e5533283933dd7dd05cae23b1e474966bc8) but was unable to figure out a way to protect against replay attacks without allowing a malicious server host of this application to break the anonymity. This approach would require publicly revealing the expiration date, (a fuzzed version of it anyways) reducing privacy for a slight UX simplification. For these reasons, requring users to join each new group has been implemented.
-
 ---
 
 <sup>1</sup>too short and it's too much rejoining, too long and expirations lag
